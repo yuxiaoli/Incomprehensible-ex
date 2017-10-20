@@ -1,7 +1,7 @@
 # Incomprehensible Ex
 Sublime Text plugin to read or edit incomprehensible extensions as docx, odt, pdf, epub and more.
 
---------------------------------------------------------------------------------------------
+---
 
 About
 
@@ -23,6 +23,12 @@ Configuration
         2 - Choose the option "Incomprehensible Ex: Manage Settings".
         3 - Configure the extensions in the file.
 
+    You can choose which extraction engine is used in read mode.
+    Supported engines:
+        - docling (default)
+        - markitdown
+        - pandoc
+
     You can set a default operating mode.
     To configure the mode do:
         1 - Use command (Ctrl+Shift+p) and type 'Incomprehensible' or 'edit mode'.
@@ -31,15 +37,73 @@ Configuration
 
 Installation
 
-    The easiest way to install this plugin, is to use the Package Control.
+    [OPTION 1: PACKAGE CONTROL]
+    The easiest way to install this plugin is with Package Control.
+        1 - Open the command palette with Ctrl+Shift+P.
+        2 - Run "Package Control: Install Package".
+        3 - Search for "Incomprehensible Ex".
+        4 - Install the package and restart Sublime Text if needed.
 
-    [READ MODE]
-    To use this plugin you must have installed textract in your system
-        - To install textract see: http://textract.readthedocs.io/en/latest/installation.html#
+    [OPTION 2: MANUAL INSTALL]
+    If you want to install this repository directly:
+        1 - Open your Sublime Text "Packages" directory.
+        2 - Clone this repository into that folder.
+        3 - Keep the package folder name as "Incomprehensible Ex".
 
-    [EDIT MODE]
-    To use the edit mode, you must have installed 'pandoc' in your system.
-        - To install pandoc see: http://pandoc.org/installing.html
+    Example manual install:
+        git clone -b develop https://github.com/yuxiaoli/Incomprehensible-ex.git "Incomprehensible Ex"
+
+    [SYSTEM DEPENDENCIES]
+    This package uses external tools depending on which engine you choose.
+
+    Read mode engines:
+        - docling (default): install docling into a system Python that Sublime can reach.
+        - markitdown: install markitdown into a system Python that Sublime can reach.
+        - pandoc: install pandoc in your system PATH.
+
+    Edit mode saves:
+        - pandoc is required to save `.inex` content back to the original document format.
+
+    Windows example:
+        py -3 -m pip install docling
+        py -3 -m pip install "markitdown[all]"
+
+    macOS / Linux example:
+        python3 -m pip install --user docling
+        python3 -m pip install --user "markitdown[all]"
+
+    Pandoc:
+        - Install pandoc from http://pandoc.org/installing.html
+
+    [VERIFY THE INSTALLATION]
+    After installing dependencies, verify them from a terminal.
+
+    Windows example:
+        py -3 -c "import docling; print('docling ok')"
+        py -3 -c "import markitdown; print('markitdown ok')"
+        pandoc --version
+
+    macOS / Linux example:
+        python3 -c "import docling; print('docling ok')"
+        python3 -c "import markitdown; print('markitdown ok')"
+        pandoc --version
+
+    If Sublime Text still cannot find the tools:
+        - Restart Sublime Text after installing Python packages or pandoc.
+        - Start Sublime Text from a terminal so it inherits your PATH.
+        - Make sure the same system Python you used for installation is the one available as `py`, `python`, or `python3`.
+
+    [SETTINGS AFTER INSTALL]
+    After the package is installed:
+        1 - Open the command palette with Ctrl+Shift+P and run "Incomprehensible Ex: Manage Settings".
+        2 - Or open Preferences -> Package Settings -> Incomprehensible Ex -> Manage Settings.
+        3 - Configure the `engine`, `extensions`, and `edit_mode` settings as needed.
+
+    Example settings:
+        {
+            "engine": "docling",
+            "edit_mode": false
+        }
 
 Usage
 

@@ -3,3 +3,7 @@ teste.epub
 teste.odt
 teste.pdf
 teste.xlsx
+
+__pycache__/
+.env
+refs/

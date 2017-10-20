@@ -1,0 +1,33 @@
+{
+    // File extensions that open through Incomprehensible Ex.
+    "extensions":
+    [
+        "mp3",
+        "odt",
+        "ogg",
+        "pdf",
+        "pptx",
+        "ps",
+        "psv",
+        "rtf",
+        "tff",
+        "tif",
+        "tiff",
+        "tsv",
+        "wav",
+        "xls",
+        "xlsx",
+        "doc",
+        "docx",
+        "eml",
+        "epub"
+    ],
+
+    // When enabled, saving a `.inex` buffer writes it back through pandoc.
+    "edit_mode": false,
+
+    // Extraction engine used when opening a supported document.
+    // Supported values: "docling", "markitdown", "pandoc"
+    // Save mode still uses pandoc for document export.
+    "engine": "docling"
+}

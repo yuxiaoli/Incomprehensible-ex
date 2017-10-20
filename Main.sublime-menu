@@ -21,5 +21,33 @@
             }
 
         ]
+    },
+    {
+        "caption": "Preferences",
+        "mnemonic": "n",
+        "id": "preferences",
+        "children":
+        [
+            {
+                "caption": "Package Settings",
+                "id": "package-settings",
+                "children":
+                [
+                    {
+                        "caption": "Incomprehensible Ex",
+                        "children":
+                        [
+                            {
+                                "caption": "Manage Settings",
+                                "command": "open_file",
+                                "args": {
+                                    "file": "${packages}/User/incomprehensibleex.sublime-settings"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     }
 ]
