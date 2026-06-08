@@ -26,8 +26,16 @@
     // When enabled, saving a `.inex` buffer writes it back through pandoc.
     "edit_mode": false,
 
-    // Extraction engine used when opening a supported document.
-    // Supported values: "docling", "markitdown", "pandoc"
+    // Extraction engines used when opening a supported document.
+    // The "default" key defines the fallback engine.
+    // You can also define extension-specific engines (e.g., "pdf": "pymupdf").
+    // Supported engines: "docling", "markitdown", "pandoc", "pymupdf", "pdfly", "python-docx", "python-pptx", "openpyxl".
     // Save mode still uses pandoc for document export.
-    "engine": "docling"
+    "engines": {
+        "default": "docling",
+        "pdf": "pymupdf",
+        "docx": "python-docx",
+        "pptx": "python-pptx",
+        "xlsx": "openpyxl"
+    }
 }

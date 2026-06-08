@@ -6,7 +6,7 @@
         "children":
         [
             {
-                "caption": "Imcomprehensible Ex",
+                "caption": "Incomprehensible Ex",
                 "children":
                 [
                     {
@@ -16,10 +16,9 @@
                     {
                         "command": "incomprehensible_ex_edit_mode_off",
                         "caption": "Edit Mode OFF"
-                    },
+                    }
                 ]
             }
-
         ]
     },
     {

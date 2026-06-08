@@ -43,6 +43,76 @@ if not content.endswith("\\n"):
 output_path.write_text(content, encoding="utf-8")
 """
 
+PYMUPDF_SCRIPT = """
+from pathlib import Path
+import sys
+import fitz
+doc = fitz.open(sys.argv[1])
+text = chr(12).join([page.get_text() for page in doc])
+if not text.endswith("\\n"):
+    text += "\\n"
+Path(sys.argv[2]).write_text(text, encoding="utf-8")
+"""
+
+PYTHON_DOCX_SCRIPT = """
+from pathlib import Path
+import sys
+import docx
+doc = docx.Document(sys.argv[1])
+text = "\\n".join([p.text for p in doc.paragraphs])
+if not text.endswith("\\n"):
+    text += "\\n"
+Path(sys.argv[2]).write_text(text, encoding="utf-8")
+"""
+
+PYTHON_PPTX_SCRIPT = """
+from pathlib import Path
+import sys
+import pptx
+prs = pptx.Presentation(sys.argv[1])
+text = []
+for slide in prs.slides:
+    for shape in slide.shapes:
+        if hasattr(shape, "text"):
+            text.append(shape.text)
+text_str = "\\n".join(text)
+if not text_str.endswith("\\n"):
+    text_str += "\\n"
+Path(sys.argv[2]).write_text(text_str, encoding="utf-8")
+"""
+
+OPENPYXL_SCRIPT = """
+from pathlib import Path
+import sys
+import openpyxl
+wb = openpyxl.load_workbook(sys.argv[1], data_only=True)
+text = []
+for sheet in wb.worksheets:
+    for row in sheet.iter_rows(values_only=True):
+        text.append("\\t".join([str(c) if c is not None else "" for c in row]))
+text_str = "\\n".join(text)
+if not text_str.endswith("\\n"):
+    text_str += "\\n"
+Path(sys.argv[2]).write_text(text_str, encoding="utf-8")
+"""
+
+
+PDFLY_SCRIPT = """
+from pathlib import Path
+import sys
+import subprocess
+
+input_path = sys.argv[1]
+output_path = Path(sys.argv[2])
+result = subprocess.run(["pdfly", "extract-text", input_path], capture_output=True)
+if result.returncode != 0:
+    raise SystemExit(result.stderr.decode("utf-8", errors="replace"))
+
+text = result.stdout.decode("utf-8", errors="replace")
+if not text.endswith("\\n"):
+    text += "\\n"
+output_path.write_text(text, encoding="utf-8")
+"""
 
 def plugin_loaded():
     IncomprehensibleEx.ensure_settings_loaded()
@@ -80,7 +150,7 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
     extensions = list(DEFAULT_EXTENSIONS)
     editable_extensions = list(EDITABLE_EXTENSIONS)
     editMode = False
-    engine = DEFAULT_ENGINE
+    engines = {"default": DEFAULT_ENGINE}
     fileSettings = None
     thread = None
 
@@ -95,8 +165,8 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
         if not settings.has("edit_mode"):
             settings.set("edit_mode", cls.editMode)
             changed = True
-        if not settings.has("engine"):
-            settings.set("engine", cls.DEFAULT_ENGINE)
+        if not settings.has("engines"):
+            settings.set("engines", {"default": cls.DEFAULT_ENGINE})
             changed = True
 
         raw_extensions = settings.get("extensions", list(cls.DEFAULT_EXTENSIONS))
@@ -118,24 +188,34 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
         cls.extensions = normalized_extensions
         cls.editMode = bool(settings.get("edit_mode", False))
 
-        engine = settings.get("engine", cls.DEFAULT_ENGINE)
-        if not isinstance(engine, str):
-            engine = cls.DEFAULT_ENGINE
+        raw_engines = settings.get("engines", {"default": cls.DEFAULT_ENGINE})
+        cls.engines = {}
+        
+        if isinstance(raw_engines, dict):
+            engine = raw_engines.get("default", cls.DEFAULT_ENGINE)
+            if not isinstance(engine, str):
+                engine = cls.DEFAULT_ENGINE
+            
+            for k, v in raw_engines.items():
+                if k != "default" and isinstance(k, str) and isinstance(v, str):
+                    cls.engines[k.lower()] = v.lower()
+        else:
+            engine = raw_engines if isinstance(raw_engines, str) else cls.DEFAULT_ENGINE
+
         engine = engine.strip().lower()
         if engine not in cls.SUPPORTED_ENGINES:
             print(
-                "Incomprehensible Ex | Unsupported engine '{0}', falling back to '{1}'".format(
+                "Incomprehensible Ex | Unsupported default engine '{0}', falling back to '{1}'".format(
                     engine, cls.DEFAULT_ENGINE
                 )
             )
             engine = cls.DEFAULT_ENGINE
-            changed = True
+            
+            if not isinstance(raw_engines, dict):
+                settings.set("engines", {"default": engine})
+                changed = True
 
-        if settings.get("engine") != engine:
-            settings.set("engine", engine)
-            changed = True
-
-        cls.engine = engine
+        cls.engines["default"] = engine
         cls.fileSettings = settings
 
         if changed:
@@ -249,7 +329,20 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
                 }
             ]
 
-        engine = type(self).engine
+        specs = []
+        
+        specific_engine = type(self).engines.get(ext)
+        if specific_engine:
+            specs.extend(self.get_engine_specs(specific_engine, inp, temp_out))
+            
+        general_engine = type(self).engines.get("default", type(self).DEFAULT_ENGINE)
+        if general_engine != specific_engine:
+            specs.extend(self.get_engine_specs(general_engine, inp, temp_out))
+            
+        return specs
+
+    def get_engine_specs(self, engine, inp, temp_out):
+        launchers = self.get_python_launchers()
         if engine == "pandoc":
             return [
                 {
@@ -263,7 +356,7 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
                     "command": launcher + ["-c", DOCLING_SCRIPT, inp, temp_out],
                     "label": "docling ({0})".format(" ".join(launcher)),
                 }
-                for launcher in self.get_python_launchers()
+                for launcher in launchers
             ]
         if engine == "markitdown":
             return [
@@ -271,9 +364,50 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
                     "command": launcher + ["-c", MARKITDOWN_SCRIPT, inp, temp_out],
                     "label": "markitdown ({0})".format(" ".join(launcher)),
                 }
-                for launcher in self.get_python_launchers()
+                for launcher in launchers
             ]
-        raise ValueError("Unsupported engine: {0}".format(engine))
+        if engine == "pymupdf":
+            return [
+                {
+                    "command": launcher + ["-c", PYMUPDF_SCRIPT, inp, temp_out],
+                    "label": "pymupdf ({0})".format(" ".join(launcher)),
+                }
+                for launcher in launchers
+            ]
+        if engine == "pdfly":
+            return [
+                {
+                    "command": launcher + ["-c", PDFLY_SCRIPT, inp, temp_out],
+                    "label": "pdfly ({0})".format(" ".join(launcher)),
+                }
+                for launcher in launchers
+            ]
+        if engine == "python-docx":
+            return [
+                {
+                    "command": launcher + ["-c", PYTHON_DOCX_SCRIPT, inp, temp_out],
+                    "label": "python-docx ({0})".format(" ".join(launcher)),
+                }
+                for launcher in launchers
+            ]
+        if engine == "python-pptx":
+            return [
+                {
+                    "command": launcher + ["-c", PYTHON_PPTX_SCRIPT, inp, temp_out],
+                    "label": "python-pptx ({0})".format(" ".join(launcher)),
+                }
+                for launcher in launchers
+            ]
+        if engine == "openpyxl":
+            return [
+                {
+                    "command": launcher + ["-c", OPENPYXL_SCRIPT, inp, temp_out],
+                    "label": "openpyxl ({0})".format(" ".join(launcher)),
+                }
+                for launcher in launchers
+            ]
+            
+        return [{"command": [engine, inp], "label": engine}]
 
     def run_command_specs(self, command_specs):
         startupinfo = None
@@ -322,13 +456,19 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
             if proc.returncode == 0:
                 return result
 
-            error_message = stderr.decode("utf-8", errors="replace")
-            if any(marker in error_message for marker in retryable_error_markers):
-                continue
-
-            return result
+            # Always continue to the next command spec on failure to allow fallback chain
+            continue
 
         return last_result
+
+    def fallback_to_bytes(self, inp, temp_out):
+        import shutil
+        try:
+            shutil.copyfile(inp, temp_out)
+            return True
+        except Exception as e:
+            print("Failed to copy raw bytes:", e)
+            return False
 
     def convert(self, inp, out, ext, save):
         try:
@@ -340,62 +480,51 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
 
             command_specs = self.build_command_specs(inp, temp_out, ext, save)
             result = self.run_command_specs(command_specs)
-            if result is None:
-                raise RuntimeError("No conversion command could be started.")
-
-            if result["returncode"] != 0:
-                error_message = (
-                    result["stderr"].decode("utf-8", errors="replace").strip()
-                    if result["stderr"] else "Unknown error."
-                )
-                error_message = ANSI_ESCAPE.sub("", error_message)
-
+            
+            conversion_success = False
+            
+            if result is not None and result["returncode"] == 0:
+                if not os.path.exists(temp_out) and result["stdout"]:
+                    with open(temp_out, "wb") as f:
+                        f.write(result["stdout"])
                 if os.path.exists(temp_out):
-                    try:
-                        os.remove(temp_out)
-                    except Exception:
-                        pass
-                if os.path.exists(out) and os.path.getsize(out) == 0:
-                    try:
-                        os.remove(out)
-                    except Exception:
-                        pass
+                    conversion_success = True
 
-                sublime.error_message(
-                    "Incomprehensible Ex conversion failed.\n\n"
-                    "Engine: {0}\n"
-                    "Command: {1}\n\n"
-                    "Details:\n{2}\n\n"
-                    "Please check the Sublime console for more details.".format(
-                        type(self).engine if not save else "pandoc (save mode)",
-                        result["label"],
-                        error_message,
+            if not conversion_success:
+                error_message = ""
+                if result is not None:
+                    error_message = (
+                        result["stderr"].decode("utf-8", errors="replace").strip()
+                        if result["stderr"] else "Unknown error."
                     )
-                )
-                print("Incomprehensible Ex conversion failed")
-                print("Input:", inp)
-                print("Output:", out)
-                print("Command:", result["label"])
-                print("Return code:", result["returncode"])
-                if error_message:
-                    print(error_message)
-                return False
+                    error_message = ANSI_ESCAPE.sub("", error_message)
+                    print("Incomprehensible Ex conversion failed")
+                    print("Input:", inp)
+                    print("Command:", result["label"])
+                    print("Return code:", result["returncode"])
+                    if error_message:
+                        print(error_message)
+                else:
+                    print("No conversion command could be started.")
+
+                print("Falling back to raw bytes display...")
+                conversion_success = self.fallback_to_bytes(inp, temp_out)
+                
+                if not conversion_success:
+                    return False
 
             os.replace(temp_out, out)
             return True
 
         except Exception as error:
-            if "temp_out" in locals() and os.path.exists(temp_out):
-                try:
-                    os.remove(temp_out)
-                except Exception:
-                    pass
             print("Incomprehensible Ex exception:", error)
-            sublime.error_message(
-                "Incomprehensible Ex execution failed.\n\n"
-                "Exception: {0}\n\n"
-                "Please check the Sublime console for details.".format(error)
-            )
+            if "temp_out" in locals():
+                if self.fallback_to_bytes(inp, temp_out):
+                    try:
+                        os.replace(temp_out, out)
+                        return True
+                    except Exception:
+                        pass
             return False
 
     def handle_active(self, view, inp, out, ext):
