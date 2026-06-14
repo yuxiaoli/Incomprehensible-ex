@@ -101,10 +101,20 @@ PDFLY_SCRIPT = """
 from pathlib import Path
 import sys
 import subprocess
+import os
 
 input_path = sys.argv[1]
 output_path = Path(sys.argv[2])
-result = subprocess.run(["pdfly", "extract-text", input_path], capture_output=True)
+
+# Use PYTHONIOENCODING to force subprocess python to output utf-8
+env = os.environ.copy()
+env["PYTHONIOENCODING"] = "utf-8"
+
+result = subprocess.run(
+    ["pdfly", "extract-text", input_path], 
+    capture_output=True,
+    env=env
+)
 if result.returncode != 0:
     raise SystemExit(result.stderr.decode("utf-8", errors="replace"))
 
