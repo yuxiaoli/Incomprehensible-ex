@@ -79,23 +79,24 @@ def main():
     if system == "Windows":
         python_cmd = "py"
         run_command("winget install JohnMacFarlane.Pandoc")
-        run_command('py -m pip install docling "markitdown[all]"')
+        run_command('py -m pip install docling "markitdown[all]" firecrawl-anydoc')
     elif system == "Darwin":
         python_cmd = "python3"
         run_command("brew install pandoc antiword")
-        run_command('python3 -m pip install --user docling "markitdown[all]"')
+        run_command('python3 -m pip install --user docling "markitdown[all]" firecrawl-anydoc')
     elif system == "Linux":
         python_cmd = "python3"
         run_command("sudo apt update")
         run_command("sudo apt install -y pandoc antiword poppler-utils python3-pip")
-        run_command('python3 -m pip install --user docling "markitdown[all]"')
+        run_command('python3 -m pip install --user docling "markitdown[all]" firecrawl-anydoc')
     else:
-        print(f"Unsupported operating system: {system}. Please install pandoc, docling, and markitdown manually.")
+        print(f"Unsupported operating system: {system}. Please install pandoc, docling, markitdown, and firecrawl-anydoc manually.")
 
     print_step("4. Verifying commands")
     pandoc_ok = shutil.which("pandoc") is not None
     docling_ok = False
     markitdown_ok = False
+    anydoc_ok = False
 
     if pandoc_ok:
         run_command("pandoc --version")
@@ -109,6 +110,9 @@ def main():
         markitdown_ok = run_command(
             f'{python_cmd} -c "import markitdown; print(\'markitdown ok\')"'
         )
+        anydoc_ok = run_command(
+            f'{python_cmd} -c "import anydoc; print(\'anydoc ok\')"'
+        )
 
     if not docling_ok:
         print("Warning: 'docling' Python package is not available in the selected system Python.")
@@ -116,7 +120,10 @@ def main():
     if not markitdown_ok:
         print("Warning: 'markitdown' Python package is not available in the selected system Python.")
 
-    if not (pandoc_ok and docling_ok and markitdown_ok):
+    if not anydoc_ok:
+        print("Warning: 'firecrawl-anydoc' Python package is not available in the selected system Python.")
+
+    if not (pandoc_ok and docling_ok and markitdown_ok and anydoc_ok):
         print("\nNote: If Sublime cannot find them, restart Sublime from a terminal so it")
         print("inherits your PATH, or add the tool locations to your system PATH.")
 

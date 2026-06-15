@@ -24,10 +24,20 @@ Configuration
         3 - Configure the extensions in the file.
 
     You can choose which extraction engine is used in read mode.
-    Supported engines:
+    Supported general engines:
         - docling (default)
         - markitdown
         - pandoc
+        - anydoc
+    
+    Supported extension-specific engines (for faster, focused extraction):
+        - pymupdf (for PDF)
+        - pdfly (for PDF)
+        - python-docx (for DOCX)
+        - python-pptx (for PPTX)
+        - openpyxl (for XLSX)
+
+    You can map specific engines to specific file extensions in the settings. If a conversion fails entirely, the plugin will safely fallback to displaying the raw file bytes using Sublime Text's default binary handling.
 
     You can set a default operating mode.
     To configure the mode do:
@@ -59,18 +69,22 @@ Installation
     Read mode engines:
         - docling (default): install docling into a system Python that Sublime can reach.
         - markitdown: install markitdown into a system Python that Sublime can reach.
+        - anydoc: install firecrawl-anydoc into a system Python that Sublime can reach.
         - pandoc: install pandoc in your system PATH.
+        - extension-specific: install `PyMuPDF` (pymupdf), `pdfly`, `python-docx`, `python-pptx`, or `openpyxl` via pip if using those targeted engines.
 
     Edit mode saves:
-        - pandoc is required to save `.inex` content back to the original document format.
+        - pandoc is required to save content back to the original document format.
 
     Windows example:
         py -3 -m pip install docling
         py -3 -m pip install "markitdown[all]"
+        py -3 -m pip install firecrawl-anydoc
 
     macOS / Linux example:
         python3 -m pip install --user docling
         python3 -m pip install --user "markitdown[all]"
+        python3 -m pip install --user firecrawl-anydoc
 
     Pandoc:
         - Install pandoc from http://pandoc.org/installing.html
@@ -81,11 +95,13 @@ Installation
     Windows example:
         py -3 -c "import docling; print('docling ok')"
         py -3 -c "import markitdown; print('markitdown ok')"
+        py -3 -c "import anydoc; print('anydoc ok')"
         pandoc --version
 
     macOS / Linux example:
         python3 -c "import docling; print('docling ok')"
         python3 -c "import markitdown; print('markitdown ok')"
+        python3 -c "import anydoc; print('anydoc ok')"
         pandoc --version
 
     If Sublime Text still cannot find the tools:
@@ -97,19 +113,22 @@ Installation
     After the package is installed:
         1 - Open the command palette with Ctrl+Shift+P and run "Incomprehensible Ex: Manage Settings".
         2 - Or open Preferences -> Package Settings -> Incomprehensible Ex -> Manage Settings.
-        3 - Configure the `engine`, `extensions`, and `edit_mode` settings as needed.
+        3 - Configure the `engines`, `extensions`, and `edit_mode` settings as needed.
 
     Example settings:
         {
-            "engine": "docling",
+            "engines": {
+                "default": "docling",
+                "pdf": "pymupdf",
+                "docx": "python-docx"
+            },
             "edit_mode": false
         }
 
 Usage
 
     Just open a file with the desired extension, as long as it is configured in the plugin settings file,
-    a new file with the extension [.inex] will open.
+    a new unsaved view with the proper extension (e.g., .md or .txt) will open.
 
     [EDIT MODE] [!WARNING!]
-        In edit mode, if you save a document you will lose the styles and formatting of the document because
-        of file conversion.
+        In edit mode, if you save the document (Ctrl+S), it will overwrite the original binary file. You will lose the styles and formatting of the document because of file conversion.

@@ -43,6 +43,24 @@ if not content.endswith("\\n"):
 output_path.write_text(content, encoding="utf-8")
 """
 
+ANYDOC_SCRIPT = """
+from pathlib import Path
+import sys
+import anydoc
+
+input_path = sys.argv[1]
+output_path = Path(sys.argv[2])
+try:
+    content = anydoc.to_markdown(input_path)
+except Exception as e:
+    raise SystemExit(str(e))
+if not content:
+    raise SystemExit("anydoc conversion failed: no content produced")
+if not content.endswith("\\n"):
+    content += "\\n"
+output_path.write_text(content, encoding="utf-8")
+"""
+
 PYMUPDF_SCRIPT = """
 from pathlib import Path
 import sys
@@ -154,7 +172,7 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
         "opendocument", "opml", "org", "plain", "revealjs", "rst", "rtf", "s5",
         "slideous", "slidy", "texinfo", "textile"
     ]
-    SUPPORTED_ENGINES = ("docling", "markitdown", "pandoc")
+    SUPPORTED_ENGINES = ("docling", "markitdown", "pandoc", "anydoc")
     DEFAULT_ENGINE = "docling"
 
     extensions = list(DEFAULT_EXTENSIONS)
@@ -231,6 +249,13 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
         if changed:
             sublime.save_settings(SETTINGS_FILENAME)
 
+    @classmethod
+    def get_proper_extension(cls, ext):
+        engine = cls.engines.get(ext, cls.engines.get("default", cls.DEFAULT_ENGINE))
+        if engine in ["docling", "markitdown", "anydoc", "pandoc"]:
+            return ".md"
+        return ".txt"
+
     def on_load(self, view):
         try:
             type(self).ensure_settings_loaded()
@@ -247,29 +272,24 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
                 window.run_command("close")
 
             inp = os.path.join(path, file_name)
-            out = inp + ".inex"
             self.thread = threading.Thread(
                 target=self.handle_active,
-                args=(view, inp, out, extension),
+                args=(view, inp, extension),
                 name=file_name
             )
             self.thread.start()
         except Exception as error:
             print("Incomprehensible Ex on_load error:", error)
 
-    def on_pre_close(self, view):
-        try:
-            if not view.is_scratch() and self.get_view_extension(view) == "inex":
-                self.deleteTemp(view)
-        except Exception:
-            return
+    def on_text_command(self, view, command_name, args):
+        if command_name == "save" and view.settings().get("inex_original_file"):
+            return ("inex_save", {})
+        return None
 
-    def on_post_save(self, view):
-        try:
-            if not view.is_scratch() and self.get_view_extension(view) == "inex":
-                self.saveTemp(view)
-        except Exception as error:
-            print("Incomprehensible Ex on_post_save error:", error)
+    def on_modified(self, view):
+        if view.settings().get("inex_original_file"):
+            if view.is_scratch():
+                view.set_scratch(False)
 
     def get_file_info(self, view):
         file_path = view.file_name()
@@ -280,45 +300,8 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
         extension = os.path.splitext(file_name)[1].lstrip(".").lower()
         return path, file_name, extension
 
-    def get_view_extension(self, view):
-        file_info = self.get_file_info(view)
-        if file_info is None:
-            return ""
-        return file_info[2]
-
-    def deleteTemp(self, view):
-        file_info = self.get_file_info(view)
-        if file_info is None:
-            return
-
-        temp_path = os.path.join(file_info[0], file_info[1])
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-
-    def saveTemp(self, view):
-        try:
-            type(self).ensure_settings_loaded()
-            file_info = self.get_file_info(view)
-            if file_info is None:
-                return
-
-            path, file_name, _ = file_info
-            inp = os.path.join(path, file_name)
-            out = os.path.join(path, file_name[:-5])
-            ext = os.path.splitext(out)[1].lstrip(".").lower()
-
-            if ext in type(self).editable_extensions and type(self).editMode:
-                self.convert(inp, out, ext, True)
-            else:
-                print(
-                    "[{0}] is not supported for edit mode or cannot be saved back.".format(
-                        ext
-                    )
-                )
-        except Exception as error:
-            print("Incomprehensible Ex saveTemp error:", error)
-
-    def get_python_launchers(self):
+    @classmethod
+    def get_python_launchers(cls):
         if os.name == "nt":
             return [
                 ["py", "-3"],
@@ -330,7 +313,8 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
             ]
         return [["python3"], ["python"]]
 
-    def build_command_specs(self, inp, temp_out, ext, save):
+    @classmethod
+    def build_command_specs(cls, inp, temp_out, ext, save):
         if save:
             return [
                 {
@@ -341,18 +325,19 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
 
         specs = []
         
-        specific_engine = type(self).engines.get(ext)
+        specific_engine = cls.engines.get(ext)
         if specific_engine:
-            specs.extend(self.get_engine_specs(specific_engine, inp, temp_out))
+            specs.extend(cls.get_engine_specs(specific_engine, inp, temp_out))
             
-        general_engine = type(self).engines.get("default", type(self).DEFAULT_ENGINE)
+        general_engine = cls.engines.get("default", cls.DEFAULT_ENGINE)
         if general_engine != specific_engine:
-            specs.extend(self.get_engine_specs(general_engine, inp, temp_out))
+            specs.extend(cls.get_engine_specs(general_engine, inp, temp_out))
             
         return specs
 
-    def get_engine_specs(self, engine, inp, temp_out):
-        launchers = self.get_python_launchers()
+    @classmethod
+    def get_engine_specs(cls, engine, inp, temp_out):
+        launchers = cls.get_python_launchers()
         if engine == "pandoc":
             return [
                 {
@@ -373,6 +358,14 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
                 {
                     "command": launcher + ["-c", MARKITDOWN_SCRIPT, inp, temp_out],
                     "label": "markitdown ({0})".format(" ".join(launcher)),
+                }
+                for launcher in launchers
+            ]
+        if engine == "anydoc":
+            return [
+                {
+                    "command": launcher + ["-c", ANYDOC_SCRIPT, inp, temp_out],
+                    "label": "anydoc ({0})".format(" ".join(launcher)),
                 }
                 for launcher in launchers
             ]
@@ -419,13 +412,14 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
             
         return [{"command": [engine, inp], "label": engine}]
 
-    def run_command_specs(self, command_specs):
+    @classmethod
+    def run_command_specs(cls, command_specs):
         startupinfo = None
         if os.name == "nt":
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-        last_result = None
+        best_error_result = None
         retryable_error_markers = (
             "No module named",
             "ModuleNotFoundError",
@@ -446,12 +440,14 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
                     startupinfo=startupinfo
                 )
             except FileNotFoundError as error:
-                last_result = {
+                result = {
                     "returncode": 127,
                     "stdout": b"",
                     "stderr": str(error).encode("utf-8", errors="replace"),
                     "label": command_spec["label"],
                 }
+                if best_error_result is None:
+                    best_error_result = result
                 continue
 
             stdout, stderr = proc.communicate()
@@ -461,17 +457,29 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
                 "stderr": stderr,
                 "label": command_spec["label"],
             }
-            last_result = result
 
             if proc.returncode == 0:
                 return result
 
-            # Always continue to the next command spec on failure to allow fallback chain
-            continue
+            stderr_text = stderr.decode("utf-8", errors="replace")
+            is_retryable = any(marker in stderr_text for marker in retryable_error_markers)
 
-        return last_result
+            if not is_retryable:
+                return result
 
-    def fallback_to_bytes(self, inp, temp_out):
+            # For retryable errors, prefer module errors over runtime missing errors
+            if best_error_result is None:
+                best_error_result = result
+            else:
+                best_stderr = best_error_result["stderr"].decode("utf-8", errors="replace")
+                if ("No module named" not in best_stderr and "ModuleNotFoundError" not in best_stderr) and \
+                   ("No module named" in stderr_text or "ModuleNotFoundError" in stderr_text):
+                    best_error_result = result
+
+        return best_error_result
+
+    @classmethod
+    def fallback_to_bytes(cls, inp, temp_out):
         import shutil
         try:
             shutil.copyfile(inp, temp_out)
@@ -480,7 +488,8 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
             print("Failed to copy raw bytes:", e)
             return False
 
-    def convert(self, inp, out, ext, save):
+    @classmethod
+    def convert(cls, inp, out, ext, save):
         try:
             temp_out = out + ".tmp"
             if os.path.exists(temp_out):
@@ -488,8 +497,8 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
             if os.path.exists(out) and os.path.getsize(out) == 0:
                 os.remove(out)
 
-            command_specs = self.build_command_specs(inp, temp_out, ext, save)
-            result = self.run_command_specs(command_specs)
+            command_specs = cls.build_command_specs(inp, temp_out, ext, save)
+            result = cls.run_command_specs(command_specs)
             
             conversion_success = False
             
@@ -518,7 +527,7 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
                     print("No conversion command could be started.")
 
                 print("Falling back to raw bytes display...")
-                conversion_success = self.fallback_to_bytes(inp, temp_out)
+                conversion_success = cls.fallback_to_bytes(inp, temp_out)
                 
                 if not conversion_success:
                     return False
@@ -529,7 +538,7 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
         except Exception as error:
             print("Incomprehensible Ex exception:", error)
             if "temp_out" in locals():
-                if self.fallback_to_bytes(inp, temp_out):
+                if cls.fallback_to_bytes(inp, temp_out):
                     try:
                         os.replace(temp_out, out)
                         return True
@@ -537,17 +546,43 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
                         pass
             return False
 
-    def handle_active(self, view, inp, out, ext):
+    def handle_active(self, view, inp, ext):
         try:
-            success = self.convert(inp, out, ext, False)
+            proper_ext = type(self).get_proper_extension(ext)
+            temp_file = inp + proper_ext
+            
+            success = type(self).convert(inp, temp_file, ext, False)
+            
             if success:
-                window = view.window() or sublime.active_window()
-                if window is not None:
-                    window.open_file(out).run_command(
-                        "reindent", {"single_line": False}
-                    )
-        except KeyError as error:
-            print(error)
+                try:
+                    with open(temp_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    os.remove(temp_file)
+                except Exception as e:
+                    print("Error reading converted file:", e)
+                    return
+
+                sublime.set_timeout(lambda: self.create_view(view.window(), inp, content, proper_ext), 0)
+        except Exception as error:
+            print("Incomprehensible Ex handle_active error:", error)
+
+    def create_view(self, window, inp, content, proper_ext):
+        if not window:
+            window = sublime.active_window()
+        if not window:
+            return
+            
+        new_view = window.new_file()
+        file_name = os.path.basename(inp)
+        new_view.set_name(file_name + proper_ext)
+        new_view.settings().set("inex_original_file", inp)
+        new_view.settings().set("inex_proper_ext", proper_ext)
+        
+        if proper_ext == ".md":
+            new_view.assign_syntax("Packages/Markdown/Markdown.sublime-syntax")
+            
+        new_view.run_command("append", {"characters": content})
+        new_view.set_scratch(False)
 
 class IncomprehensibleExEditModeOnCommand(sublime_plugin.ApplicationCommand):
 
@@ -572,3 +607,41 @@ class IncomprehensibleExEditModeOffCommand(sublime_plugin.ApplicationCommand):
             sublime.active_window().status_message("Incomprehensible Ex | Edit Mode OFF")
         except Exception as e:
             print(e)
+
+
+class InexSaveCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        view = self.view
+        inp = view.settings().get("inex_original_file")
+        proper_ext = view.settings().get("inex_proper_ext", ".md")
+        
+        if not IncomprehensibleEx.editMode:
+            sublime.status_message("Incomprehensible Ex: Edit Mode is OFF")
+            return
+            
+        ext = os.path.splitext(inp)[1].lstrip(".").lower()
+        if ext not in IncomprehensibleEx.editable_extensions:
+            sublime.status_message(f"Incomprehensible Ex: {ext} is not editable")
+            return
+
+        content = view.substr(sublime.Region(0, view.size()))
+        
+        sublime.status_message(f"Incomprehensible Ex: Saving to {os.path.basename(inp)}...")
+        
+        temp_file = inp + proper_ext
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                f.write(content)
+            
+            success = IncomprehensibleEx.convert(temp_file, inp, ext, True)
+            if success:
+                sublime.status_message(f"Incomprehensible Ex: Saved {os.path.basename(inp)}")
+                view.set_scratch(True)
+            else:
+                sublime.status_message(f"Incomprehensible Ex: Failed to save {os.path.basename(inp)}")
+        finally:
+            if os.path.exists(temp_file):
+                try:
+                    os.remove(temp_file)
+                except:
+                    pass
