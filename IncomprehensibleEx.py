@@ -621,12 +621,12 @@ class InexSaveCommand(sublime_plugin.TextCommand):
             
         ext = os.path.splitext(inp)[1].lstrip(".").lower()
         if ext not in IncomprehensibleEx.editable_extensions:
-            sublime.status_message(f"Incomprehensible Ex: {ext} is not editable")
+            sublime.status_message("Incomprehensible Ex: {0} is not editable".format(ext))
             return
 
         content = view.substr(sublime.Region(0, view.size()))
         
-        sublime.status_message(f"Incomprehensible Ex: Saving to {os.path.basename(inp)}...")
+        sublime.status_message("Incomprehensible Ex: Saving to {0}...".format(os.path.basename(inp)))
         
         temp_file = inp + proper_ext
         try:
@@ -635,10 +635,10 @@ class InexSaveCommand(sublime_plugin.TextCommand):
             
             success = IncomprehensibleEx.convert(temp_file, inp, ext, True)
             if success:
-                sublime.status_message(f"Incomprehensible Ex: Saved {os.path.basename(inp)}")
+                sublime.status_message("Incomprehensible Ex: Saved {0}".format(os.path.basename(inp)))
                 view.set_scratch(True)
             else:
-                sublime.status_message(f"Incomprehensible Ex: Failed to save {os.path.basename(inp)}")
+                sublime.status_message("Incomprehensible Ex: Failed to save {0}".format(os.path.basename(inp)))
         finally:
             if os.path.exists(temp_file):
                 try:
