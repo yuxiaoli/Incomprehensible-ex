@@ -29,7 +29,8 @@ Configuration
         - markitdown
         - pandoc
         - anydoc
-    
+        - eml2md
+
     Supported extension-specific engines (for faster, focused extraction):
         - pymupdf (for PDF)
         - pdfly (for PDF)
@@ -97,12 +98,14 @@ Installation
         py -3 -c "import markitdown; print('markitdown ok')"
         py -3 -c "import anydoc; print('anydoc ok')"
         pandoc --version
+        eml2md --version
 
     macOS / Linux example:
         python3 -c "import docling; print('docling ok')"
         python3 -c "import markitdown; print('markitdown ok')"
         python3 -c "import anydoc; print('anydoc ok')"
         pandoc --version
+        eml2md --version
 
     If Sublime Text still cannot find the tools:
         - Restart Sublime Text after installing Python packages or pandoc.

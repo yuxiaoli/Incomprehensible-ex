@@ -172,7 +172,7 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
         "opendocument", "opml", "org", "plain", "revealjs", "rst", "rtf", "s5",
         "slideous", "slidy", "texinfo", "textile"
     ]
-    SUPPORTED_ENGINES = ("docling", "markitdown", "pandoc", "anydoc")
+    SUPPORTED_ENGINES = ("docling", "markitdown", "pandoc", "anydoc", "eml2md")
     DEFAULT_ENGINE = "docling"
 
     extensions = list(DEFAULT_EXTENSIONS)
@@ -252,7 +252,7 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
     @classmethod
     def get_proper_extension(cls, ext):
         engine = cls.engines.get(ext, cls.engines.get("default", cls.DEFAULT_ENGINE))
-        if engine in ["docling", "markitdown", "anydoc", "pandoc"]:
+        if engine in ["docling", "markitdown", "anydoc", "eml2md", "pandoc"]:
             return ".md"
         return ".txt"
 
@@ -368,6 +368,14 @@ class IncomprehensibleEx(sublime_plugin.EventListener):
                     "label": "anydoc ({0})".format(" ".join(launcher)),
                 }
                 for launcher in launchers
+            ]
+        if engine == "eml2md":
+            cmd_name = "eml2md.exe" if os.name == "nt" else "eml2md"
+            return [
+                {
+                    "command": [cmd_name, "-i", inp, "-o", temp_out],
+                    "label": "eml2md",
+                }
             ]
         if engine == "pymupdf":
             return [
